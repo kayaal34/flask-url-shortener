@@ -51,6 +51,13 @@ def create_app(database="links.db"):
                 short_url = url_for("follow", code=code, _external=True)
         return render_template("index.html", short_url=short_url, error=error)
 
+    @app.route("/stats")
+    def stats():
+        rows = get_db().execute(
+            "SELECT code, url, clicks FROM links ORDER BY clicks DESC, code LIMIT 50"
+        ).fetchall()
+        return render_template("stats.html", links=rows)
+
     @app.route("/<code>")
     def follow(code):
         db = get_db()

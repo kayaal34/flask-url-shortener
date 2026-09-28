@@ -31,3 +31,6 @@ button {
 button:hover { background: #1a7f37; }
 .error { color: #d1242f; }
 .result { background: #fff; padding: 12px; border-radius: 8px; word-break: break-all; }
+table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eaeef2; }
+td.url { word-break: break-all; color: #59636e; }

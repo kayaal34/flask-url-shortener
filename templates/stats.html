@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shorty – stats</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main>
+    <h1>Stats</h1>
+    <p class="tagline"><a href="{{ url_for('index') }}">&larr; Shorten another link</a></p>
+    {% if links %}
+      <table>
+        <thead><tr><th>Code</th><th>Destination</th><th>Clicks</th></tr></thead>
+        <tbody>
+          {% for link in links %}
+            <tr>
+              <td><a href="{{ url_for('follow', code=link.code) }}">{{ link.code }}</a></td>
+              <td class="url">{{ link.url }}</td>
+              <td>{{ link.clicks }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No links yet.</p>
+    {% endif %}
+  </main>
+</body>
+</html>
