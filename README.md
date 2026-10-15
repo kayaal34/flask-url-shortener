@@ -22,3 +22,5 @@ Then open http://127.0.0.1:5000.
 pip install pytest
 pytest
 ```
+
+![tests](https://github.com/kayaal34/flask-url-shortener/actions/workflows/tests.yml/badge.svg)
