@@ -38,3 +38,21 @@ def test_invalid_url_shows_error(client):
 
 def test_unknown_code_is_404(client):
     assert client.get("/doesnotexist").status_code == 404
+
+
+def test_custom_alias(client):
+    client.post("/", data={"url": "https://example.com", "alias": "my-link"})
+    assert client.get("/my-link").headers["Location"] == "https://example.com"
+
+
+def test_duplicate_and_reserved_alias_rejected(client):
+    client.post("/", data={"url": "https://example.com", "alias": "taken"})
+    dup = client.post("/", data={"url": "https://example.org", "alias": "taken"})
+    assert "already taken" in dup.get_data(as_text=True)
+    reserved = client.post("/", data={"url": "https://example.org", "alias": "stats"})
+    assert "already taken" in reserved.get_data(as_text=True)
+
+
+def test_invalid_alias_rejected(client):
+    resp = client.post("/", data={"url": "https://example.com", "alias": "a b"})
+    assert "Alias must be" in resp.get_data(as_text=True)

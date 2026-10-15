@@ -1,5 +1,6 @@
 """Minimal URL shortener built with Flask and SQLite."""
 
+import re
 import secrets
 import sqlite3
 import string
@@ -9,6 +10,7 @@ from flask import Flask, abort, g, redirect, render_template, request, url_for
 
 ALPHABET = string.ascii_letters + string.digits
 CODE_LENGTH = 6
+RESERVED = {"stats", "static"}
 
 
 def create_app(database="links.db"):
@@ -42,10 +44,16 @@ def create_app(database="links.db"):
         short_url = error = None
         if request.method == "POST":
             url = request.form.get("url", "").strip()
+            alias = request.form.get("alias", "").strip()
+            db = get_db()
             if not is_valid_url(url):
                 error = "Please enter a valid http(s) URL."
+            elif alias and not is_valid_alias(alias):
+                error = "Alias must be 3-30 letters, digits, '-' or '_'."
+            elif alias and alias in RESERVED or alias and code_exists(db, alias):
+                error = f"The alias '{alias}' is already taken."
             else:
-                code = new_code(get_db())
+                code = alias or new_code(db)
                 get_db().execute("INSERT INTO links (code, url) VALUES (?, ?)", (code, url))
                 get_db().commit()
                 short_url = url_for("follow", code=code, _external=True)
@@ -76,10 +84,18 @@ def is_valid_url(url):
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)
 
 
+def is_valid_alias(alias):
+    return re.fullmatch(r"[A-Za-z0-9_-]{3,30}", alias) is not None
+
+
+def code_exists(db, code):
+    return db.execute("SELECT 1 FROM links WHERE code = ?", (code,)).fetchone() is not None
+
+
 def new_code(db):
     while True:
         code = "".join(secrets.choice(ALPHABET) for _ in range(CODE_LENGTH))
-        if db.execute("SELECT 1 FROM links WHERE code = ?", (code,)).fetchone() is None:
+        if not code_exists(db, code):
             return code
 
 
