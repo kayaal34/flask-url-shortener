@@ -4,6 +4,7 @@ A small URL-shortener website built with **Flask** and **SQLite**.
 
 - Shorten any `http(s)` link to a random 6-character code
 - Visiting `/<code>` redirects to the original URL
+- Optionally pick your own alias (e.g. `/my-link`)
 - `/stats` lists the most clicked links
 
 ## Run locally

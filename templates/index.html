@@ -12,6 +12,7 @@
     <p class="tagline">Paste a long link, get a short one. <a href="{{ url_for('stats') }}">See stats</a></p>
     <form method="post">
       <input type="url" name="url" placeholder="https://example.com/a/very/long/link" required>
+      <input type="text" name="alias" placeholder="custom alias (optional)" class="alias">
       <button type="submit">Shorten</button>
     </form>
     {% if error %}<p class="error">{{ error }}</p>{% endif %}

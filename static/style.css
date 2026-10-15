@@ -34,3 +34,8 @@ button:hover { background: #1a7f37; }
 table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; }
 th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eaeef2; }
 td.url { word-break: break-all; color: #59636e; }
+input.alias { flex: 0 0 180px; }
+@media (max-width: 560px) {
+  form { flex-direction: column; }
+  input.alias { flex: 1; }
+}
