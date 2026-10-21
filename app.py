@@ -6,11 +6,11 @@ import sqlite3
 import string
 from urllib.parse import urlparse
 
-from flask import Flask, abort, g, redirect, render_template, request, url_for
+from flask import Flask, abort, g, jsonify, redirect, render_template, request, url_for
 
 ALPHABET = string.ascii_letters + string.digits
 CODE_LENGTH = 6
-RESERVED = {"stats", "static"}
+RESERVED = {"stats", "static", "api"}
 
 
 def create_app(database="links.db"):
@@ -45,19 +45,48 @@ def create_app(database="links.db"):
         if request.method == "POST":
             url = request.form.get("url", "").strip()
             alias = request.form.get("alias", "").strip()
-            db = get_db()
-            if not is_valid_url(url):
-                error = "Please enter a valid http(s) URL."
-            elif alias and not is_valid_alias(alias):
-                error = "Alias must be 3-30 letters, digits, '-' or '_'."
-            elif alias and alias in RESERVED or alias and code_exists(db, alias):
-                error = f"The alias '{alias}' is already taken."
-            else:
-                code = alias or new_code(db)
-                get_db().execute("INSERT INTO links (code, url) VALUES (?, ?)", (code, url))
-                get_db().commit()
+            code, error = shorten(url, alias)
+            if code:
                 short_url = url_for("follow", code=code, _external=True)
         return render_template("index.html", short_url=short_url, error=error)
+
+    def shorten(url, alias=""):
+        """Store a new link. Returns (code, None) on success or (None, error)."""
+        db = get_db()
+        if not is_valid_url(url):
+            return None, "Please enter a valid http(s) URL."
+        if alias and not is_valid_alias(alias):
+            return None, "Alias must be 3-30 letters, digits, '-' or '_'."
+        if alias and (alias in RESERVED or code_exists(db, alias)):
+            return None, f"The alias '{alias}' is already taken."
+        code = alias or new_code(db)
+        db.execute("INSERT INTO links (code, url) VALUES (?, ?)", (code, url))
+        db.commit()
+        return code, None
+
+    def link_json(code, url, clicks):
+        return {
+            "code": code,
+            "url": url,
+            "short_url": url_for("follow", code=code, _external=True),
+            "clicks": clicks,
+        }
+
+    @app.post("/api/links")
+    def api_create_link():
+        data = request.get_json(silent=True) or {}
+        code, error = shorten(str(data.get("url", "")).strip(), str(data.get("alias", "")).strip())
+        if error:
+            status = 409 if "already taken" in error else 400
+            return jsonify(error=error), status
+        return jsonify(link_json(code, data["url"].strip(), 0)), 201
+
+    @app.get("/api/links/<code>")
+    def api_get_link(code):
+        row = get_db().execute("SELECT code, url, clicks FROM links WHERE code = ?", (code,)).fetchone()
+        if row is None:
+            return jsonify(error="Not found"), 404
+        return jsonify(link_json(row["code"], row["url"], row["clicks"]))
 
     @app.route("/stats")
     def stats():
