@@ -56,3 +56,31 @@ def test_duplicate_and_reserved_alias_rejected(client):
 def test_invalid_alias_rejected(client):
     resp = client.post("/", data={"url": "https://example.com", "alias": "a b"})
     assert "Alias must be" in resp.get_data(as_text=True)
+
+
+def test_api_create_and_get_link(client):
+    resp = client.post("/api/links", json={"url": "https://example.com/docs", "alias": "docs"})
+    assert resp.status_code == 201
+    assert resp.get_json() == {
+        "code": "docs",
+        "url": "https://example.com/docs",
+        "short_url": "http://localhost/docs",
+        "clicks": 0,
+    }
+    client.get("/docs")
+    assert client.get("/api/links/docs").get_json()["clicks"] == 1
+
+
+def test_api_generates_code_without_alias(client):
+    data = client.post("/api/links", json={"url": "https://example.com"}).get_json()
+    assert len(data["code"]) == 6
+    assert client.get(f"/{data['code']}").headers["Location"] == "https://example.com"
+
+
+def test_api_errors(client):
+    assert client.post("/api/links", json={"url": "nope"}).status_code == 400
+    assert client.post("/api/links", data="not json").status_code == 400
+    client.post("/api/links", json={"url": "https://example.com", "alias": "dup"})
+    assert client.post("/api/links", json={"url": "https://example.org", "alias": "dup"}).status_code == 409
+    assert client.post("/api/links", json={"url": "https://example.org", "alias": "api"}).status_code == 409
+    assert client.get("/api/links/missing").status_code == 404
