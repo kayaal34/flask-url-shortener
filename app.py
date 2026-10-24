@@ -55,7 +55,8 @@ def create_app(database="links.db"):
         if request.method == "POST":
             url = request.form.get("url", "").strip()
             alias = request.form.get("alias", "").strip()
-            code, error = shorten(url, alias)
+            expires = request.form.get("expires_in_days", "").strip()
+            code, error = shorten(url, alias, int(expires) if expires.isdigit() else None)
             if code:
                 short_url = url_for("follow", code=code, _external=True)
         return render_template("index.html", short_url=short_url, error=error)
@@ -114,9 +115,10 @@ def create_app(database="links.db"):
     @app.route("/stats")
     def stats():
         rows = get_db().execute(
-            "SELECT code, url, clicks FROM links ORDER BY clicks DESC, code LIMIT 50"
+            "SELECT code, url, clicks, expires_at FROM links ORDER BY clicks DESC, code LIMIT 50"
         ).fetchall()
-        return render_template("stats.html", links=rows)
+        links = [dict(row, expired=is_expired(row["expires_at"], now())) for row in rows]
+        return render_template("stats.html", links=links)
 
     @app.route("/<code>")
     def follow(code):

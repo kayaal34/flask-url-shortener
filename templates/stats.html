@@ -12,13 +12,14 @@
     <p class="tagline"><a href="{{ url_for('index') }}">&larr; Shorten another link</a></p>
     {% if links %}
       <table>
-        <thead><tr><th>Code</th><th>Destination</th><th>Clicks</th></tr></thead>
+        <thead><tr><th>Code</th><th>Destination</th><th>Clicks</th><th>Expires</th></tr></thead>
         <tbody>
           {% for link in links %}
             <tr>
               <td><a href="{{ url_for('follow', code=link.code) }}">{{ link.code }}</a></td>
               <td class="url">{{ link.url }}</td>
               <td>{{ link.clicks }}</td>
+              <td>{% if link.expires_at %}{{ link.expires_at[:10] }}{% if link.expired %} <span class="expired">expired</span>{% endif %}{% else %}never{% endif %}</td>
             </tr>
           {% endfor %}
         </tbody>

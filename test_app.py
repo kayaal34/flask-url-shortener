@@ -123,3 +123,20 @@ def test_old_database_gets_expiry_column(tmp_path):
     con.close()
     client = create_app(str(db)).test_client()
     assert client.get("/old").status_code == 302
+
+
+def test_form_expiry_and_stats(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    app = create_app(str(tmp_path / "test.db"))
+    start = datetime(2026, 10, 24, tzinfo=timezone.utc)
+    app.config["NOW"] = lambda: start
+    client = app.test_client()
+    client.post("/", data={"url": "https://example.com", "alias": "week", "expires_in_days": "7"})
+    client.post("/", data={"url": "https://example.org", "alias": "keep", "expires_in_days": ""})
+    page = client.get("/stats").get_data(as_text=True)
+    assert "2026-10-31" in page and "never" in page and "expired</span>" not in page
+    app.config["NOW"] = lambda: start + timedelta(days=8)
+    assert "expired</span>" in client.get("/stats").get_data(as_text=True)
+    assert client.get("/week").status_code == 410
+    assert client.get("/keep").status_code == 302
