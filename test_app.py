@@ -66,6 +66,8 @@ def test_api_create_and_get_link(client):
         "url": "https://example.com/docs",
         "short_url": "http://localhost/docs",
         "clicks": 0,
+        "expires_at": None,
+        "expired": False,
     }
     client.get("/docs")
     assert client.get("/api/links/docs").get_json()["clicks"] == 1
@@ -84,3 +86,57 @@ def test_api_errors(client):
     assert client.post("/api/links", json={"url": "https://example.org", "alias": "dup"}).status_code == 409
     assert client.post("/api/links", json={"url": "https://example.org", "alias": "api"}).status_code == 409
     assert client.get("/api/links/missing").status_code == 404
+
+
+def test_link_expires(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    app = create_app(str(tmp_path / "test.db"))
+    start = datetime(2026, 10, 24, tzinfo=timezone.utc)
+    app.config["NOW"] = lambda: start
+    client = app.test_client()
+    client.post("/api/links", json={"url": "https://example.com", "alias": "soon", "expires_in_days": 2})
+    assert client.get("/soon").status_code == 302
+    app.config["NOW"] = lambda: start + timedelta(days=2)
+    assert client.get("/soon").status_code == 410
+    data = client.get("/api/links/soon").get_json()
+    assert data["expires_at"] == "2026-10-26T00:00:00+00:00"
+    assert data["expired"] is True
+
+
+def test_expiry_validation(client):
+    for value in [0, 366, "3", 2.5, True]:
+        resp = client.post("/api/links", json={"url": "https://example.com", "expires_in_days": value})
+        assert resp.status_code == 400, value
+    created = client.post("/api/links", json={"url": "https://example.com"}).get_json()
+    assert created["expires_at"] is None and created["expired"] is False
+
+
+def test_old_database_gets_expiry_column(tmp_path):
+    import sqlite3
+
+    db = tmp_path / "old.db"
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE links (code TEXT PRIMARY KEY, url TEXT NOT NULL, clicks INTEGER NOT NULL DEFAULT 0)")
+    con.execute("INSERT INTO links (code, url) VALUES ('old', 'https://example.com')")
+    con.commit()
+    con.close()
+    client = create_app(str(db)).test_client()
+    assert client.get("/old").status_code == 302
+
+
+def test_form_expiry_and_stats(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    app = create_app(str(tmp_path / "test.db"))
+    start = datetime(2026, 10, 24, tzinfo=timezone.utc)
+    app.config["NOW"] = lambda: start
+    client = app.test_client()
+    client.post("/", data={"url": "https://example.com", "alias": "week", "expires_in_days": "7"})
+    client.post("/", data={"url": "https://example.org", "alias": "keep", "expires_in_days": ""})
+    page = client.get("/stats").get_data(as_text=True)
+    assert "2026-10-31" in page and "never" in page and "expired</span>" not in page
+    app.config["NOW"] = lambda: start + timedelta(days=8)
+    assert "expired</span>" in client.get("/stats").get_data(as_text=True)
+    assert client.get("/week").status_code == 410
+    assert client.get("/keep").status_code == 302

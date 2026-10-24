@@ -5,6 +5,7 @@ A small URL-shortener website built with **Flask** and **SQLite**.
 - Shorten any `http(s)` link to a random 6-character code
 - Visiting `/<code>` redirects to the original URL
 - Optionally pick your own alias (e.g. `/my-link`)
+- Links can expire: `"expires_in_days": 7` in the API (or the form field) makes the link return `410 Gone` after a week
 - `/stats` lists the most clicked links
 
 ## JSON API
