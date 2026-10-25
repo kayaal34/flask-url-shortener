@@ -17,6 +17,13 @@ curl -X POST http://127.0.0.1:5000/api/links -H "Content-Type: application/json"
 curl http://127.0.0.1:5000/api/links/ex
 ```
 
+Clicks per day for the last N days (1-90, default 7), with 0 for days without clicks:
+
+```bash
+curl "http://127.0.0.1:5000/api/links/ex/clicks?days=3"
+# {"code": "ex", "days": [{"day": "2026-10-23", "clicks": 0}, ...], "total": 5}
+```
+
 Errors come back as `{"error": "..."}` with status 400 (invalid input), 404 (unknown code) or 409 (alias taken).
 
 ## Run locally

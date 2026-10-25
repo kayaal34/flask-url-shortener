@@ -140,3 +140,55 @@ def test_form_expiry_and_stats(tmp_path):
     assert "expired</span>" in client.get("/stats").get_data(as_text=True)
     assert client.get("/week").status_code == 410
     assert client.get("/keep").status_code == 302
+
+
+def test_clicks_are_recorded_per_day(tmp_path):
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+
+    db_path = tmp_path / "test.db"
+    app = create_app(str(db_path))
+    day1 = datetime(2026, 10, 24, 23, 0, tzinfo=timezone.utc)
+    app.config["NOW"] = lambda: day1
+    client = app.test_client()
+    client.post("/api/links", json={"url": "https://example.com", "alias": "daily"})
+    client.get("/daily")
+    client.get("/daily")
+    app.config["NOW"] = lambda: day1 + timedelta(hours=2)
+    client.get("/daily")
+    rows = sqlite3.connect(db_path).execute(
+        "SELECT day, clicks FROM daily_clicks WHERE code = 'daily' ORDER BY day"
+    ).fetchall()
+    assert rows == [("2026-10-24", 2), ("2026-10-25", 1)]
+
+
+def test_api_daily_clicks(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    app = create_app(str(tmp_path / "test.db"))
+    start = datetime(2026, 10, 20, 12, tzinfo=timezone.utc)
+    app.config["NOW"] = lambda: start
+    client = app.test_client()
+    client.post("/api/links", json={"url": "https://example.com", "alias": "trend"})
+    for offset, clicks in [(0, 2), (2, 1), (4, 3)]:
+        app.config["NOW"] = lambda offset=offset: start + timedelta(days=offset)
+        for _ in range(clicks):
+            client.get("/trend")
+    data = client.get("/api/links/trend/clicks?days=3").get_json()
+    assert data == {
+        "code": "trend",
+        "days": [
+            {"day": "2026-10-22", "clicks": 1},
+            {"day": "2026-10-23", "clicks": 0},
+            {"day": "2026-10-24", "clicks": 3},
+        ],
+        "total": 4,
+    }
+    assert len(client.get("/api/links/trend/clicks").get_json()["days"]) == 7
+
+
+def test_api_daily_clicks_errors(client):
+    assert client.get("/api/links/missing/clicks").status_code == 404
+    client.post("/api/links", json={"url": "https://example.com", "alias": "abc"})
+    for bad in ["0", "91", "x", "-1"]:
+        assert client.get(f"/api/links/abc/clicks?days={bad}").status_code == 400, bad
