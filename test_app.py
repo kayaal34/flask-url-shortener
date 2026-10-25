@@ -140,3 +140,23 @@ def test_form_expiry_and_stats(tmp_path):
     assert "expired</span>" in client.get("/stats").get_data(as_text=True)
     assert client.get("/week").status_code == 410
     assert client.get("/keep").status_code == 302
+
+
+def test_clicks_are_recorded_per_day(tmp_path):
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+
+    db_path = tmp_path / "test.db"
+    app = create_app(str(db_path))
+    day1 = datetime(2026, 10, 24, 23, 0, tzinfo=timezone.utc)
+    app.config["NOW"] = lambda: day1
+    client = app.test_client()
+    client.post("/api/links", json={"url": "https://example.com", "alias": "daily"})
+    client.get("/daily")
+    client.get("/daily")
+    app.config["NOW"] = lambda: day1 + timedelta(hours=2)
+    client.get("/daily")
+    rows = sqlite3.connect(db_path).execute(
+        "SELECT day, clicks FROM daily_clicks WHERE code = 'daily' ORDER BY day"
+    ).fetchall()
+    assert rows == [("2026-10-24", 2), ("2026-10-25", 1)]

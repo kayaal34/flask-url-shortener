@@ -41,6 +41,14 @@ def create_app(database="links.db"):
                    clicks INTEGER NOT NULL DEFAULT 0
                )"""
         )
+        get_db().execute(
+            """CREATE TABLE IF NOT EXISTS daily_clicks (
+                   code   TEXT NOT NULL,
+                   day    TEXT NOT NULL,
+                   clicks INTEGER NOT NULL DEFAULT 0,
+                   PRIMARY KEY (code, day)
+               )"""
+        )
         columns = {row["name"] for row in get_db().execute("PRAGMA table_info(links)")}
         if "expires_at" not in columns:  # databases created before links could expire
             get_db().execute("ALTER TABLE links ADD COLUMN expires_at TEXT")
@@ -129,6 +137,11 @@ def create_app(database="links.db"):
         if is_expired(row["expires_at"], now()):
             abort(410)
         db.execute("UPDATE links SET clicks = clicks + 1 WHERE code = ?", (code,))
+        db.execute(
+            """INSERT INTO daily_clicks (code, day, clicks) VALUES (?, ?, 1)
+               ON CONFLICT (code, day) DO UPDATE SET clicks = clicks + 1""",
+            (code, now().date().isoformat()),
+        )
         db.commit()
         return redirect(row["url"])
 
