@@ -120,6 +120,25 @@ def create_app(database="links.db"):
             return jsonify(error="Not found"), 404
         return jsonify(link_json(row["code"], row["url"], row["clicks"], row["expires_at"]))
 
+    @app.get("/api/links/<code>/clicks")
+    def api_daily_clicks(code):
+        db = get_db()
+        if not code_exists(db, code):
+            return jsonify(error="Not found"), 404
+        days = request.args.get("days", "7")
+        if not days.isdigit() or not 1 <= int(days) <= 90:
+            return jsonify(error="days must be a whole number from 1 to 90."), 400
+        today = now().date()
+        window = [(today - timedelta(days=offset)).isoformat() for offset in range(int(days) - 1, -1, -1)]
+        counts = dict(
+            db.execute(
+                "SELECT day, clicks FROM daily_clicks WHERE code = ? AND day >= ?",
+                (code, window[0]),
+            ).fetchall()
+        )
+        series = [{"day": day, "clicks": counts.get(day, 0)} for day in window]
+        return jsonify(code=code, days=series, total=sum(item["clicks"] for item in series))
+
     @app.route("/stats")
     def stats():
         rows = get_db().execute(
