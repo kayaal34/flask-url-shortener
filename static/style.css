@@ -41,3 +41,5 @@ select.expiry { padding: 12px; border: 1px solid #d1d9e0; border-radius: 8px; }
   form { flex-direction: column; }
   input.alias { flex: 1; }
 }
+a.button { display: inline-block; padding: 12px 20px; border-radius: 8px; background: #1f883d; color: #fff; text-decoration: none; }
+a.button:hover { background: #1a7f37; }
