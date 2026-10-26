@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Shorty – where does {{ link.code }} go?</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main>
+    <h1>Link preview</h1>
+    <p class="tagline">{{ request.host }}/{{ link.code }} goes to <strong>{{ host }}</strong></p>
+    <p class="result url">{{ link.url }}</p>
+    {% if link.expired %}
+      <p class="error">This link has expired.</p>
+    {% else %}
+      <p><a class="button" href="{{ link.url }}" rel="noopener noreferrer">Continue to {{ host }}</a></p>
+    {% endif %}
+    <p class="tagline">Clicked {{ link.clicks }} time{{ "" if link.clicks == 1 else "s" }}{% if link.expires_at %} · expires {{ link.expires_at[:10] }}{% endif %}</p>
+  </main>
+</body>
+</html>

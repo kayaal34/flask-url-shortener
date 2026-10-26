@@ -94,6 +94,7 @@ def create_app(database="links.db"):
             "url": url,
             "short_url": url_for("follow", code=code, _external=True),
             "clicks": clicks,
+            "preview_url": url_for("preview", code=code, _external=True),
             "expires_at": expires_at,
             "expired": is_expired(expires_at, now()),
         }
@@ -146,6 +147,17 @@ def create_app(database="links.db"):
         ).fetchall()
         links = [dict(row, expired=is_expired(row["expires_at"], now())) for row in rows]
         return render_template("stats.html", links=links)
+
+    @app.route("/<code>+")
+    def preview(code):
+        """Show where a short link goes without following it (or counting a click)."""
+        row = get_db().execute(
+            "SELECT code, url, clicks, expires_at FROM links WHERE code = ?", (code,)
+        ).fetchone()
+        if row is None:
+            abort(404)
+        link = dict(row, expired=is_expired(row["expires_at"], now()))
+        return render_template("preview.html", link=link, host=urlparse(row["url"]).netloc)
 
     @app.route("/<code>")
     def follow(code):

@@ -66,6 +66,7 @@ def test_api_create_and_get_link(client):
         "url": "https://example.com/docs",
         "short_url": "http://localhost/docs",
         "clicks": 0,
+        "preview_url": "http://localhost/docs+",
         "expires_at": None,
         "expired": False,
     }
@@ -192,3 +193,32 @@ def test_api_daily_clicks_errors(client):
     client.post("/api/links", json={"url": "https://example.com", "alias": "abc"})
     for bad in ["0", "91", "x", "-1"]:
         assert client.get(f"/api/links/abc/clicks?days={bad}").status_code == 400, bad
+
+
+def test_preview_shows_destination_without_counting(client):
+    client.post("/api/links", json={"url": "https://example.com/very/long/path?q=1", "alias": "peek"})
+    page = client.get("/peek+")
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert "example.com" in html and "https://example.com/very/long/path?q=1" in html
+    assert "Clicked 0 times" in html
+    assert client.get("/api/links/peek").get_json()["clicks"] == 0
+
+
+def test_preview_unknown_and_expired(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    app = create_app(str(tmp_path / "test.db"))
+    start = datetime(2026, 10, 26, tzinfo=timezone.utc)
+    app.config["NOW"] = lambda: start
+    client = app.test_client()
+    assert client.get("/nope+").status_code == 404
+    client.post("/api/links", json={"url": "https://example.com", "alias": "old", "expires_in_days": 1})
+    app.config["NOW"] = lambda: start + timedelta(days=2)
+    html = client.get("/old+").get_data(as_text=True)
+    assert "This link has expired." in html and "Continue to" not in html
+
+
+def test_index_links_to_preview(client):
+    html = client.post("/", data={"url": "https://example.com", "alias": "home"}).get_data(as_text=True)
+    assert 'href="http://localhost/home+"' in html
