@@ -23,7 +23,8 @@
     </form>
     {% if error %}<p class="error">{{ error }}</p>{% endif %}
     {% if short_url %}
-      <p class="result">Your link: <a href="{{ short_url }}">{{ short_url }}</a></p>
+      <p class="result">Your link: <a href="{{ short_url }}">{{ short_url }}</a><br>
+        <small>Preview it without following: <a href="{{ short_url }}+">{{ short_url }}+</a></small></p>
     {% endif %}
   </main>
 </body>

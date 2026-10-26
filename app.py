@@ -94,6 +94,7 @@ def create_app(database="links.db"):
             "url": url,
             "short_url": url_for("follow", code=code, _external=True),
             "clicks": clicks,
+            "preview_url": url_for("preview", code=code, _external=True),
             "expires_at": expires_at,
             "expired": is_expired(expires_at, now()),
         }

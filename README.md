@@ -6,6 +6,7 @@ A small URL-shortener website built with **Flask** and **SQLite**.
 - Visiting `/<code>` redirects to the original URL
 - Optionally pick your own alias (e.g. `/my-link`)
 - Links can expire: `"expires_in_days": 7` in the API (or the form field) makes the link return `410 Gone` after a week
+- Add `+` to a short link (`/my-link+`) to see where it goes before following it; previews don't count as clicks
 - `/stats` lists the most clicked links
 
 ## JSON API

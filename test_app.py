@@ -66,6 +66,7 @@ def test_api_create_and_get_link(client):
         "url": "https://example.com/docs",
         "short_url": "http://localhost/docs",
         "clicks": 0,
+        "preview_url": "http://localhost/docs+",
         "expires_at": None,
         "expired": False,
     }
@@ -216,3 +217,8 @@ def test_preview_unknown_and_expired(tmp_path):
     app.config["NOW"] = lambda: start + timedelta(days=2)
     html = client.get("/old+").get_data(as_text=True)
     assert "This link has expired." in html and "Continue to" not in html
+
+
+def test_index_links_to_preview(client):
+    html = client.post("/", data={"url": "https://example.com", "alias": "home"}).get_data(as_text=True)
+    assert 'href="http://localhost/home+"' in html
