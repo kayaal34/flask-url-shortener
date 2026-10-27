@@ -260,3 +260,32 @@ def test_form_shows_delete_token_once(client):
     token = _re.search(r"<code>([^<]+)</code>", html).group(1)
     assert client.delete("/api/links/mine", headers={"Authorization": f"Bearer {token}"}).status_code == 204
     assert "<code>" not in client.get("/").get_data(as_text=True)
+
+
+def test_bulk_create(client):
+    resp = client.post("/api/links/bulk", json={"links": [
+        {"url": "https://example.com/a", "alias": "bulk-a"},
+        {"url": "not a url"},
+        {"url": "https://example.com/b", "expires_in_days": 3},
+        {"url": "https://example.com/c", "alias": "bulk-a"},
+        "nope",
+    ]})
+    assert resp.status_code == 201
+    data = resp.get_json()
+    assert (data["created"], data["failed"]) == (2, 3)
+    links = data["links"]
+    assert links[0]["code"] == "bulk-a" and "delete_token" in links[0]
+    assert "valid http(s) URL" in links[1]["error"]
+    assert links[2]["expires_at"] is not None
+    assert "already taken" in links[3]["error"]
+    assert links[4] == {"error": "Each link must be an object."}
+    assert client.get("/bulk-a").headers["Location"] == "https://example.com/a"
+
+
+def test_bulk_create_rejects_bad_requests(client):
+    assert client.post("/api/links/bulk", json={"links": []}).status_code == 400
+    assert client.post("/api/links/bulk", json=[{"url": "https://example.com"}]).status_code == 400
+    too_many = {"links": [{"url": f"https://example.com/{i}"} for i in range(101)]}
+    assert client.post("/api/links/bulk", json=too_many).status_code == 400
+    all_bad = client.post("/api/links/bulk", json={"links": [{"url": "x"}]})
+    assert all_bad.status_code == 400 and all_bad.get_json()["failed"] == 1

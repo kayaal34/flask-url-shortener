@@ -18,6 +18,14 @@ curl -X POST http://127.0.0.1:5000/api/links -H "Content-Type: application/json"
 curl http://127.0.0.1:5000/api/links/ex
 ```
 
+Create up to 100 links in one request. Each item is handled on its own, so one bad item
+doesn't stop the others (status 201 if at least one was created):
+
+```bash
+curl -X POST http://127.0.0.1:5000/api/links/bulk -H "Content-Type: application/json" -d '{"links": [{"url": "https://example.com/a"}, {"url": "https://example.com/b", "alias": "b"}]}'
+# {"created": 2, "failed": 0, "links": [{...}, {...}]}
+```
+
 Clicks per day for the last N days (1-90, default 7), with 0 for days without clicks:
 
 ```bash
