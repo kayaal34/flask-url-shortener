@@ -61,7 +61,9 @@ def test_invalid_alias_rejected(client):
 def test_api_create_and_get_link(client):
     resp = client.post("/api/links", json={"url": "https://example.com/docs", "alias": "docs"})
     assert resp.status_code == 201
-    assert resp.get_json() == {
+    body = resp.get_json()
+    assert len(body.pop("delete_token")) >= 32
+    assert body == {
         "code": "docs",
         "url": "https://example.com/docs",
         "short_url": "http://localhost/docs",
@@ -222,3 +224,39 @@ def test_preview_unknown_and_expired(tmp_path):
 def test_index_links_to_preview(client):
     html = client.post("/", data={"url": "https://example.com", "alias": "home"}).get_data(as_text=True)
     assert 'href="http://localhost/home+"' in html
+
+
+def test_delete_link_with_token(client):
+    token = client.post("/api/links", json={"url": "https://example.com", "alias": "gone"}).get_json()["delete_token"]
+    client.get("/gone")
+    assert client.delete("/api/links/gone").status_code == 403
+    assert client.delete("/api/links/gone", headers={"Authorization": "Bearer wrong"}).status_code == 403
+    assert client.delete("/api/links/gone", headers={"Authorization": f"Bearer {token}"}).status_code == 204
+    assert client.get("/gone").status_code == 404
+    assert client.get("/api/links/gone/clicks").status_code == 404
+    assert client.delete("/api/links/gone", headers={"Authorization": f"Bearer {token}"}).status_code == 404
+
+
+def test_token_is_stored_hashed_and_old_links_cannot_be_deleted(tmp_path):
+    import sqlite3
+
+    db = tmp_path / "old.db"
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE links (code TEXT PRIMARY KEY, url TEXT NOT NULL, clicks INTEGER NOT NULL DEFAULT 0)")
+    con.execute("INSERT INTO links (code, url) VALUES ('legacy', 'https://example.com')")
+    con.commit()
+    con.close()
+    client = create_app(str(db)).test_client()
+    token = client.post("/api/links", json={"url": "https://example.org", "alias": "fresh"}).get_json()["delete_token"]
+    stored = sqlite3.connect(db).execute("SELECT token_hash FROM links WHERE code = 'fresh'").fetchone()[0]
+    assert token not in stored and len(stored) == 64
+    assert client.delete("/api/links/legacy", headers={"Authorization": f"Bearer {token}"}).status_code == 403
+
+
+def test_form_shows_delete_token_once(client):
+    import re as _re
+
+    html = client.post("/", data={"url": "https://example.com", "alias": "mine"}).get_data(as_text=True)
+    token = _re.search(r"<code>([^<]+)</code>", html).group(1)
+    assert client.delete("/api/links/mine", headers={"Authorization": f"Bearer {token}"}).status_code == 204
+    assert "<code>" not in client.get("/").get_data(as_text=True)

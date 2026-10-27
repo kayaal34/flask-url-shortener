@@ -25,6 +25,8 @@
     {% if short_url %}
       <p class="result">Your link: <a href="{{ short_url }}">{{ short_url }}</a><br>
         <small>Preview it without following: <a href="{{ short_url }}+">{{ short_url }}+</a></small></p>
+      <p class="token"><small>Delete token (shown only once, keep it if you may want to delete the link):<br>
+        <code>{{ delete_token }}</code></small></p>
     {% endif %}
   </main>
 </body>

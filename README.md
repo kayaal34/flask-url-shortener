@@ -25,6 +25,15 @@ curl "http://127.0.0.1:5000/api/links/ex/clicks?days=3"
 # {"code": "ex", "days": [{"day": "2026-10-23", "clicks": 0}, ...], "total": 5}
 ```
 
+Creating a link (in the API or the form) returns a `delete_token`, shown only once.
+Only a SHA-256 hash of it is stored. Use it to delete the link and its click history:
+
+```bash
+curl -X DELETE http://127.0.0.1:5000/api/links/ex -H "Authorization: Bearer <delete_token>"
+```
+
+Links created before tokens existed can't be deleted through the API.
+
 Errors come back as `{"error": "..."}` with status 400 (invalid input), 404 (unknown code) or 409 (alias taken).
 
 ## Run locally
