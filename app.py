@@ -15,6 +15,7 @@ ALPHABET = string.ascii_letters + string.digits
 CODE_LENGTH = 6
 RESERVED = {"stats", "static", "api"}
 MAX_EXPIRY_DAYS = 365
+MAX_BULK_LINKS = 100
 
 
 def create_app(database="links.db"):
@@ -123,6 +124,37 @@ def create_app(database="links.db"):
         body = link_json(code, data["url"].strip(), 0, row["expires_at"])
         body["delete_token"] = g.last_token
         return jsonify(body), 201
+
+    @app.post("/api/links/bulk")
+    def api_create_links_bulk():
+        """Create several links at once. Each item is handled like POST /api/links;
+        one bad item doesn't stop the others, its result just carries an error."""
+        data = request.get_json(silent=True)
+        items = data.get("links") if isinstance(data, dict) else None
+        if not isinstance(items, list) or not items:
+            return jsonify(error='Send {"links": [{"url": ...}, ...]}.'), 400
+        if len(items) > MAX_BULK_LINKS:
+            return jsonify(error=f"At most {MAX_BULK_LINKS} links per request."), 400
+        results = []
+        for item in items:
+            if not isinstance(item, dict):
+                results.append({"error": "Each link must be an object."})
+                continue
+            expires = item.get("expires_in_days")
+            if expires is not None and (isinstance(expires, bool) or not isinstance(expires, int)):
+                results.append({"error": "expires_in_days must be a whole number of days."})
+                continue
+            url = str(item.get("url", "")).strip()
+            code, error = shorten(url, str(item.get("alias", "")).strip(), expires)
+            if error:
+                results.append({"error": error})
+                continue
+            row = get_db().execute("SELECT expires_at FROM links WHERE code = ?", (code,)).fetchone()
+            body = link_json(code, url, 0, row["expires_at"])
+            body["delete_token"] = g.last_token
+            results.append(body)
+        created = sum("error" not in r for r in results)
+        return jsonify(created=created, failed=len(results) - created, links=results), 201 if created else 400
 
     @app.delete("/api/links/<code>")
     def api_delete_link(code):
