@@ -110,19 +110,28 @@ def create_app(database="links.db"):
             "expired": is_expired(expires_at, now()),
         }
 
+    def create_from_json(item):
+        """Create a link from one API item. Returns (body, None) or (None, error)."""
+        if not isinstance(item, dict):
+            return None, "Each link must be an object."
+        expires = item.get("expires_in_days")
+        if expires is not None and (isinstance(expires, bool) or not isinstance(expires, int)):
+            return None, "expires_in_days must be a whole number of days."
+        url = str(item.get("url", "")).strip()
+        code, error = shorten(url, str(item.get("alias", "")).strip(), expires)
+        if error:
+            return None, error
+        row = get_db().execute("SELECT expires_at FROM links WHERE code = ?", (code,)).fetchone()
+        body = link_json(code, url, 0, row["expires_at"])
+        body["delete_token"] = g.last_token
+        return body, None
+
     @app.post("/api/links")
     def api_create_link():
-        data = request.get_json(silent=True) or {}
-        expires = data.get("expires_in_days")
-        if expires is not None and (isinstance(expires, bool) or not isinstance(expires, int)):
-            return jsonify(error="expires_in_days must be a whole number of days."), 400
-        code, error = shorten(str(data.get("url", "")).strip(), str(data.get("alias", "")).strip(), expires)
+        body, error = create_from_json(request.get_json(silent=True) or {})
         if error:
             status = 409 if "already taken" in error else 400
             return jsonify(error=error), status
-        row = get_db().execute("SELECT expires_at FROM links WHERE code = ?", (code,)).fetchone()
-        body = link_json(code, data["url"].strip(), 0, row["expires_at"])
-        body["delete_token"] = g.last_token
         return jsonify(body), 201
 
     @app.post("/api/links/bulk")
@@ -137,22 +146,8 @@ def create_app(database="links.db"):
             return jsonify(error=f"At most {MAX_BULK_LINKS} links per request."), 400
         results = []
         for item in items:
-            if not isinstance(item, dict):
-                results.append({"error": "Each link must be an object."})
-                continue
-            expires = item.get("expires_in_days")
-            if expires is not None and (isinstance(expires, bool) or not isinstance(expires, int)):
-                results.append({"error": "expires_in_days must be a whole number of days."})
-                continue
-            url = str(item.get("url", "")).strip()
-            code, error = shorten(url, str(item.get("alias", "")).strip(), expires)
-            if error:
-                results.append({"error": error})
-                continue
-            row = get_db().execute("SELECT expires_at FROM links WHERE code = ?", (code,)).fetchone()
-            body = link_json(code, url, 0, row["expires_at"])
-            body["delete_token"] = g.last_token
-            results.append(body)
+            body, error = create_from_json(item)
+            results.append(body if body else {"error": error})
         created = sum("error" not in r for r in results)
         return jsonify(created=created, failed=len(results) - created, links=results), 201 if created else 400
 
