@@ -43,3 +43,4 @@ select.expiry { padding: 12px; border: 1px solid #d1d9e0; border-radius: 8px; }
 }
 a.button { display: inline-block; padding: 12px 20px; border-radius: 8px; background: #1f883d; color: #fff; text-decoration: none; }
 a.button:hover { background: #1a7f37; }
+.token code { word-break: break-all; background: #fff; padding: 2px 4px; border-radius: 4px; }

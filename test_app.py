@@ -251,3 +251,12 @@ def test_token_is_stored_hashed_and_old_links_cannot_be_deleted(tmp_path):
     stored = sqlite3.connect(db).execute("SELECT token_hash FROM links WHERE code = 'fresh'").fetchone()[0]
     assert token not in stored and len(stored) == 64
     assert client.delete("/api/links/legacy", headers={"Authorization": f"Bearer {token}"}).status_code == 403
+
+
+def test_form_shows_delete_token_once(client):
+    import re as _re
+
+    html = client.post("/", data={"url": "https://example.com", "alias": "mine"}).get_data(as_text=True)
+    token = _re.search(r"<code>([^<]+)</code>", html).group(1)
+    assert client.delete("/api/links/mine", headers={"Authorization": f"Bearer {token}"}).status_code == 204
+    assert "<code>" not in client.get("/").get_data(as_text=True)

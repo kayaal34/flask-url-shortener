@@ -63,7 +63,7 @@ def create_app(database="links.db"):
 
     @app.route("/", methods=["GET", "POST"])
     def index():
-        short_url = error = None
+        short_url = error = delete_token = None
         if request.method == "POST":
             url = request.form.get("url", "").strip()
             alias = request.form.get("alias", "").strip()
@@ -71,7 +71,8 @@ def create_app(database="links.db"):
             code, error = shorten(url, alias, int(expires) if expires.isdigit() else None)
             if code:
                 short_url = url_for("follow", code=code, _external=True)
-        return render_template("index.html", short_url=short_url, error=error)
+                delete_token = g.last_token
+        return render_template("index.html", short_url=short_url, error=error, delete_token=delete_token)
 
     def shorten(url, alias="", expires_in_days=None):
         """Store a new link. Returns (code, None) on success or (None, error)."""
