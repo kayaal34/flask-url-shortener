@@ -1,5 +1,7 @@
 """Minimal URL shortener built with Flask and SQLite."""
 
+import hashlib
+import hmac
 import re
 import secrets
 import sqlite3
@@ -52,6 +54,8 @@ def create_app(database="links.db"):
         columns = {row["name"] for row in get_db().execute("PRAGMA table_info(links)")}
         if "expires_at" not in columns:  # databases created before links could expire
             get_db().execute("ALTER TABLE links ADD COLUMN expires_at TEXT")
+        if "token_hash" not in columns:  # links created before deletion existed have no token
+            get_db().execute("ALTER TABLE links ADD COLUMN token_hash TEXT")
         get_db().commit()
 
     def now():
@@ -84,8 +88,13 @@ def create_app(database="links.db"):
         expires_at = None
         if expires_in_days is not None:
             expires_at = (now() + timedelta(days=expires_in_days)).isoformat(timespec="seconds")
-        db.execute("INSERT INTO links (code, url, expires_at) VALUES (?, ?, ?)", (code, url, expires_at))
+        token = secrets.token_urlsafe(24)
+        db.execute(
+            "INSERT INTO links (code, url, expires_at, token_hash) VALUES (?, ?, ?, ?)",
+            (code, url, expires_at, hash_token(token)),
+        )
         db.commit()
+        g.last_token = token  # handed back once, only to whoever created the link
         return code, None
 
     def link_json(code, url, clicks, expires_at=None):
@@ -110,7 +119,24 @@ def create_app(database="links.db"):
             status = 409 if "already taken" in error else 400
             return jsonify(error=error), status
         row = get_db().execute("SELECT expires_at FROM links WHERE code = ?", (code,)).fetchone()
-        return jsonify(link_json(code, data["url"].strip(), 0, row["expires_at"])), 201
+        body = link_json(code, data["url"].strip(), 0, row["expires_at"])
+        body["delete_token"] = g.last_token
+        return jsonify(body), 201
+
+    @app.delete("/api/links/<code>")
+    def api_delete_link(code):
+        db = get_db()
+        row = db.execute("SELECT token_hash FROM links WHERE code = ?", (code,)).fetchone()
+        if row is None:
+            return jsonify(error="Not found"), 404
+        auth = request.headers.get("Authorization", "")
+        token = auth[len("Bearer "):] if auth.startswith("Bearer ") else ""
+        if not row["token_hash"] or not token or not hmac.compare_digest(hash_token(token), row["token_hash"]):
+            return jsonify(error="A valid delete token is required."), 403
+        db.execute("DELETE FROM daily_clicks WHERE code = ?", (code,))
+        db.execute("DELETE FROM links WHERE code = ?", (code,))
+        db.commit()
+        return "", 204
 
     @app.get("/api/links/<code>")
     def api_get_link(code):
@@ -182,6 +208,11 @@ def create_app(database="links.db"):
 def is_valid_url(url):
     parsed = urlparse(url)
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
+
+def hash_token(token):
+    """Only a hash of the delete token is stored, so a leaked database can't delete links."""
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 def is_expired(expires_at, now):
