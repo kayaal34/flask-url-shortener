@@ -40,7 +40,15 @@ Only a SHA-256 hash of it is stored. Use it to delete the link and its click his
 curl -X DELETE http://127.0.0.1:5000/api/links/ex -H "Authorization: Bearer <delete_token>"
 ```
 
-Links created before tokens existed can't be deleted through the API.
+The same token lets you point a link somewhere else or change its expiry, keeping its code
+and click count. `expires_in_days` can be `null` to remove the expiry:
+
+```bash
+curl -X PATCH http://127.0.0.1:5000/api/links/ex -H "Authorization: Bearer <delete_token>" \
+  -H "Content-Type: application/json" -d '{"url": "https://example.org", "expires_in_days": 7}'
+```
+
+Links created before tokens existed can't be deleted or changed through the API.
 
 Errors come back as `{"error": "..."}` with status 400 (invalid input), 404 (unknown code) or 409 (alias taken).
 

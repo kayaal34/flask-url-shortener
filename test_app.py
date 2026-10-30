@@ -289,3 +289,39 @@ def test_bulk_create_rejects_bad_requests(client):
     assert client.post("/api/links/bulk", json=too_many).status_code == 400
     all_bad = client.post("/api/links/bulk", json={"links": [{"url": "x"}]})
     assert all_bad.status_code == 400 and all_bad.get_json()["failed"] == 1
+
+
+def make_token(client, alias):
+    created = client.post("/api/links", json={"url": "https://example.com", "alias": alias})
+    return {"Authorization": f"Bearer {created.get_json()['delete_token']}"}
+
+
+def test_update_link_target_keeps_code_and_clicks(client):
+    auth = make_token(client, "move")
+    client.get("/move")
+    response = client.patch("/api/links/move", json={"url": "https://example.org"}, headers=auth)
+    assert response.status_code == 200
+    body = response.get_json()
+    assert (body["url"], body["clicks"]) == ("https://example.org", 1)
+    assert client.get("/move").headers["Location"] == "https://example.org"
+
+
+def test_update_link_expiry(client):
+    auth = make_token(client, "soon")
+    assert client.patch("/api/links/soon", json={"expires_in_days": 3}, headers=auth).get_json()["expires_at"]
+    assert client.patch("/api/links/soon", json={"expires_in_days": None}, headers=auth).get_json()["expires_at"] is None
+
+
+def test_update_link_needs_the_token(client):
+    make_token(client, "mine")
+    assert client.patch("/api/links/mine", json={"url": "https://example.org"}).status_code == 403
+    assert client.patch("/api/links/nope", json={"url": "https://example.org"}).status_code == 404
+
+
+def test_update_link_rejects_bad_input_without_saving(client):
+    auth = make_token(client, "safe")
+    bad = {"url": "https://example.org", "expires_in_days": 0}
+    assert client.patch("/api/links/safe", json=bad, headers=auth).status_code == 400
+    assert client.patch("/api/links/safe", json={"url": "nope"}, headers=auth).status_code == 400
+    assert client.patch("/api/links/safe", json={}, headers=auth).status_code == 400
+    assert client.get("/api/links/safe").get_json()["url"] == "https://example.com"

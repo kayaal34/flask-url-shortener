@@ -173,6 +173,33 @@ def create_app(database="links.db"):
         db.commit()
         return "", 204
 
+    @app.patch("/api/links/<code>")
+    def api_update_link(code):
+        denied = check_token(code)
+        if denied:
+            return denied
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or not data.keys() & {"url", "expires_in_days"}:
+            return jsonify(error="Send url and/or expires_in_days."), 400
+        db = get_db()
+        if "url" in data:
+            url = str(data["url"] or "").strip()
+            if not is_valid_url(url):
+                return jsonify(error="Please enter a valid http(s) URL."), 400
+            db.execute("UPDATE links SET url = ? WHERE code = ?", (url, code))
+        if "expires_in_days" in data:
+            days = data["expires_in_days"]
+            if days is None:
+                expires_at = None
+            elif isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= MAX_EXPIRY_DAYS:
+                db.rollback()
+                return jsonify(error=f"Expiry must be between 1 and {MAX_EXPIRY_DAYS} days."), 400
+            else:
+                expires_at = (now() + timedelta(days=days)).isoformat(timespec="seconds")
+            db.execute("UPDATE links SET expires_at = ? WHERE code = ?", (expires_at, code))
+        db.commit()
+        return api_get_link(code)
+
     @app.get("/api/links/<code>")
     def api_get_link(code):
         row = get_db().execute(
