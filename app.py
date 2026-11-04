@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+import os
 import re
 import secrets
 import sqlite3
@@ -301,4 +302,5 @@ def new_code(db):
 
 
 if __name__ == "__main__":
-    create_app().run(debug=True)
+    # The Werkzeug debugger runs code from the browser, so it is opt-in
+    create_app().run(debug=os.environ.get("FLASK_DEBUG") == "1")
