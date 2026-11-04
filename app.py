@@ -69,7 +69,11 @@ def create_app(database="links.db"):
             url = request.form.get("url", "").strip()
             alias = request.form.get("alias", "").strip()
             expires = request.form.get("expires_in_days", "").strip()
-            code, error = shorten(url, alias, int(expires) if expires.isdigit() else None)
+            if expires and not expires.isdigit():
+                # "-3" or "abc" used to be ignored silently and the link never expired
+                code, error = None, f"Expiry must be between 1 and {MAX_EXPIRY_DAYS} days."
+            else:
+                code, error = shorten(url, alias, int(expires) if expires else None)
             if code:
                 short_url = url_for("follow", code=code, _external=True)
                 delete_token = g.last_token

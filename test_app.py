@@ -325,3 +325,11 @@ def test_update_link_rejects_bad_input_without_saving(client):
     assert client.patch("/api/links/safe", json={"url": "nope"}, headers=auth).status_code == 400
     assert client.patch("/api/links/safe", json={}, headers=auth).status_code == 400
     assert client.get("/api/links/safe").get_json()["url"] == "https://example.com"
+
+
+@pytest.mark.parametrize("value", ["-3", "abc", "1.5"])
+def test_form_rejects_invalid_expiry(client, value):
+    resp = client.post("/", data={"url": "https://example.com", "alias": "bad", "expires_in_days": value})
+
+    assert "Expiry must be between" in resp.get_data(as_text=True)
+    assert client.get("/api/links/bad").status_code == 404
