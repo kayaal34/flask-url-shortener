@@ -59,6 +59,8 @@ pip install -r requirements.txt
 python app.py
 ```
 
+Set `FLASK_DEBUG=1` to turn on the Flask debugger while developing; it is off by default.
+
 Then open http://127.0.0.1:5000.
 
 ## Tests
